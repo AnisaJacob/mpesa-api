@@ -158,7 +158,32 @@ class MpesaAPI {
           }
         );
 
-        return response.data;
+        // Map response codes to meaningful status
+        const data = response.data;
+        const resultCode = data.ResultCode;
+        
+        // Enhanced status mapping based on M-Pesa response codes
+        let status = 'PENDING';
+        if (resultCode === '0') {
+          status = 'SUCCESS';
+        } else if (resultCode === '1032') {
+          status = 'CANCELLED'; // Request cancelled by user
+        } else if (resultCode === '1037') {
+          status = 'TIMEOUT'; // DS timeout user cannot be reached
+        } else if (resultCode === '1025') {
+          status = 'INVALID_PHONE'; // Unable to lock subscriber, invalid phone number
+        } else if (resultCode === '1001') {
+          status = 'INSUFFICIENT_FUNDS'; // Insufficient funds on MPESA account
+        } else if (resultCode === '1019') {
+          status = 'TRANSACTION_FAILED'; // Transaction failed
+        } else if (resultCode && resultCode !== '1037') {
+          status = 'FAILED';
+        }
+        
+        return {
+          ...data,
+          MappedStatus: status
+        };
       });
     } catch (error) {
       console.error("Transaction query error:", error.response?.data || error.message);
@@ -377,6 +402,47 @@ class MpesaAPI {
       );
       throw new Error(
         error.response?.data?.errorMessage || "QR Code generation failed"
+      );
+    }
+  }
+
+  async reverseTransaction(transactionId, amount, receiverParty, remarks, occasion = "") {
+    try {
+      const accessToken = await this.getAccessToken();
+
+      const reversalData = {
+        Initiator: this.initiatorName,
+        SecurityCredential: this.securityCredential,
+        CommandID: "TransactionReversal",
+        TransactionID: transactionId,
+        Amount: Math.round(amount),
+        ReceiverParty: receiverParty,
+        RecieverIdentifierType: "11", // 11 for MSISDN
+        ResultURL: this.resultUrl,
+        QueueTimeOutURL: this.timeoutUrl,
+        Remarks: remarks,
+        Occasion: occasion,
+      };
+
+      const response = await axios.post(
+        `${this.baseURL}/mpesa/reversal/v1/request`,
+        reversalData,
+        {
+          headers: {
+            Authorization: `Bearer ${accessToken}`,
+            "Content-Type": "application/json",
+          },
+        }
+      );
+
+      return response.data;
+    } catch (error) {
+      console.error(
+        "Transaction Reversal error:",
+        error.response?.data || error.message
+      );
+      throw new Error(
+        error.response?.data?.errorMessage || "Transaction Reversal failed"
       );
     }
   }

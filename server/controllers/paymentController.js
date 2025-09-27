@@ -82,7 +82,7 @@ export const checkPaymentStatus = async (req, res) => {
     }
 
     // If payment is already completed (SUCCESS or FAILED), return cached result
-    if (payment.status === "SUCCESS" || payment.status === "FAILED") {
+    if (payment.status === "SUCCESS" || payment.status === "FAILED" || payment.status === "CANCELLED" || payment.status === "TIMEOUT") {
       return res.json({
         success: true,
         data: payment,
@@ -104,23 +104,25 @@ export const checkPaymentStatus = async (req, res) => {
     }
 
     if (queryResponse.ResultCode !== undefined) {
-      // parse resultCode from string to number
-      const rc = parseInt(queryResponse.ResultCode, 10);
-      const resultCodeValue = isNaN(rc) ? null : rc;
+      const resultCode = queryResponse.ResultCode;
+      const mappedStatus = queryResponse.MappedStatus || 'PENDING';
+      
+      // Only update if status has changed
+      if (mappedStatus !== payment.status) {
+        const updatedPayment = await prisma.payment.update({
+          where: { checkoutRequestId },
+          data: {
+            status: mappedStatus,
+            resultCode: resultCode,
+            resultDesc: queryResponse.ResultDesc,
+          },
+        });
 
-      const updatedPayment = await prisma.payment.update({
-        where: { checkoutRequestId },
-        data: {
-          status: queryResponse.ResultCode === "0" ? "SUCCESS" : "FAILED",
-          resultCode: resultCodeValue,
-          resultDesc: queryResponse.ResultDesc,
-        },
-      });
-
-      return res.json({
-        success: true,
-        data: updatedPayment,
-      });
+        return res.json({
+          success: true,
+          data: updatedPayment,
+        });
+      }
     }
 
     res.json({
