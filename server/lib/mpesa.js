@@ -174,31 +174,6 @@ class MpesaAPI {
       throw new Error(error.response?.data?.errorMessage || "Transaction query failed");
     }
   }
-      const accessToken = await this.getAccessToken();
-      const timestamp = this.generateTimestamp();
-      const password = this.generatePassword(timestamp);
-
-      const queryData = {
-        BusinessShortCode: this.businessShortCode,
-        Password: password,
-        Timestamp: timestamp,
-        CheckoutRequestID: checkoutRequestId,
-      };
-
-      const response = await axios.post(
-        `${this.baseURL}/mpesa/stkpushquery/v1/query`,
-        queryData,
-        {
-          headers: {
-            Authorization: `Bearer ${accessToken}`,
-            "Content-Type": "application/json",
-          },
-        }
-      );
-
-      return response.data;
-    });
-  }
 
   async b2cPayment(phoneNumber, amount, commandId, remarks, occasion = "") {
     try {
