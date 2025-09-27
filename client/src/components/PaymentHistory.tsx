@@ -26,7 +26,7 @@ const PaymentHistory: React.FC = () => {
 
     try {
       const response = await fetch(
-        "https://pv6zd9-3000.csb.app/api/payments/history"
+        "http://localhost:3001/api/payments/history"
       );
       const data = await response.json();
 

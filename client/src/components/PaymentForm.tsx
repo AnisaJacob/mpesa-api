@@ -81,7 +81,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ onPaymentInitiated }) => {
       const formattedPhone = formatPhoneNumber(formData.phoneNumber);
 
       const response = await fetch(
-        "https://pv6zd9-3000.csb.app/api/payments/initiate",
+        "http://localhost:3001/api/payments/initiate",
         {
           method: "POST",
           headers: {

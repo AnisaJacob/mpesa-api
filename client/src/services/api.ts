@@ -1,4 +1,4 @@
-const API_BASE_URL = "https://pv6zd9-3000.csb.app/api";
+const API_BASE_URL = "http://localhost:3001/api";
 
 export interface PaymentRequest {
   phoneNumber: string;

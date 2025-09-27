@@ -26,6 +26,8 @@ const PaymentStatus: React.FC<PaymentStatusProps> = ({
   const [payment, setPayment] = useState<Payment | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
+  const [rateLimited, setRateLimited] = useState(false);
+  const [refreshInterval, setRefreshInterval] = useState(5000); // Start with 5 seconds
 
   const getStatusIcon = (status: string) => {
     switch (status) {
@@ -59,12 +61,20 @@ const PaymentStatus: React.FC<PaymentStatusProps> = ({
 
     try {
       const response = await fetch(
-        `https://pv6zd9-3000.csb.app/api/payments/status/${checkoutRequestId}`
+        `http://localhost:3001/api/payments/status/${checkoutRequestId}`
       );
       const data = await response.json();
 
       if (data.success && data.data) {
         setPayment(data.data);
+        setRateLimited(data.data.rateLimited || false);
+        
+        // If rate limited, increase refresh interval to reduce API calls
+        if (data.data.rateLimited) {
+          setRefreshInterval(30000); // 30 seconds when rate limited
+        } else if (data.data.status === "PENDING") {
+          setRefreshInterval(10000); // 10 seconds for pending payments
+        }
       } else {
         setError(data.message || "Failed to fetch payment status");
       }
@@ -79,15 +89,15 @@ const PaymentStatus: React.FC<PaymentStatusProps> = ({
   useEffect(() => {
     checkPaymentStatus();
 
-    // Auto-refresh for pending payments
+    // Auto-refresh for pending payments with dynamic interval
     const interval = setInterval(() => {
       if (payment?.status === "PENDING") {
         checkPaymentStatus();
       }
-    }, 5000);
+    }, refreshInterval);
 
     return () => clearInterval(interval);
-  }, [checkoutRequestId, payment?.status]);
+  }, [checkoutRequestId, payment?.status, refreshInterval]);
 
   const formatAmount = (amount: number) => {
     return new Intl.NumberFormat("en-KE", {
@@ -229,9 +239,17 @@ const PaymentStatus: React.FC<PaymentStatusProps> = ({
 
       {payment?.status === "PENDING" && (
         <div className="mt-4 text-center">
-          <p className="text-sm text-gray-500">
-            Status updates automatically every 5 seconds
-          </p>
+          {rateLimited ? (
+            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
+              <p className="text-sm text-yellow-700">
+                ⚠️ API rate limit reached. Status will update automatically via callback or check manually.
+              </p>
+            </div>
+          ) : (
+            <p className="text-sm text-gray-500">
+              Status updates automatically every {refreshInterval / 1000} seconds
+            </p>
+          )}
         </div>
       )}
     </div>

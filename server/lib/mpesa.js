@@ -1,5 +1,6 @@
 import axios from "axios";
 import dotenv from "dotenv";
+import Bottleneck from "bottleneck";
 
 dotenv.config();
 
@@ -20,6 +21,15 @@ class MpesaAPI {
       this.environment === "sandbox"
         ? "https://sandbox.safaricom.co.ke"
         : "https://api.safaricom.co.ke";
+
+    // Rate limiter: 4 requests per minute to stay under the 5 request limit
+    this.limiter = new Bottleneck({
+      minTime: 15000, // 15 seconds between requests
+      maxConcurrent: 1,
+      reservoir: 4, // Start with 4 requests
+      reservoirRefreshAmount: 4,
+      reservoirRefreshInterval: 60 * 1000, // Refresh every minute
+    });
   }
 
   formatPhoneNumber(phoneNumber) {
@@ -124,7 +134,46 @@ class MpesaAPI {
   }
 
   async queryTransaction(checkoutRequestId) {
-    return this.limiter.schedule(async () => {
+    try {
+      return await this.limiter.schedule(async () => {
+        const accessToken = await this.getAccessToken();
+        const timestamp = this.generateTimestamp();
+        const password = this.generatePassword(timestamp);
+
+        const queryData = {
+          BusinessShortCode: this.businessShortCode,
+          Password: password,
+          Timestamp: timestamp,
+          CheckoutRequestID: checkoutRequestId,
+        };
+
+        const response = await axios.post(
+          `${this.baseURL}/mpesa/stkpushquery/v1/query`,
+          queryData,
+          {
+            headers: {
+              Authorization: `Bearer ${accessToken}`,
+              "Content-Type": "application/json",
+            },
+          }
+        );
+
+        return response.data;
+      });
+    } catch (error) {
+      console.error("Transaction query error:", error.response?.data || error.message);
+      
+      // If it's a rate limit error, return a specific response
+      if (error.response?.data?.fault?.detail?.errorcode === 'policies.ratelimit.SpikeArrestViolation') {
+        return {
+          ResultCode: "RATE_LIMITED",
+          ResultDesc: "Rate limit exceeded. Please try again later.",
+        };
+      }
+      
+      throw new Error(error.response?.data?.errorMessage || "Transaction query failed");
+    }
+  }
       const accessToken = await this.getAccessToken();
       const timestamp = this.generateTimestamp();
       const password = this.generatePassword(timestamp);

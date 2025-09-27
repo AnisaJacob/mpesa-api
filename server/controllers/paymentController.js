@@ -81,7 +81,27 @@ export const checkPaymentStatus = async (req, res) => {
       });
     }
 
+    // If payment is already completed (SUCCESS or FAILED), return cached result
+    if (payment.status === "SUCCESS" || payment.status === "FAILED") {
+      return res.json({
+        success: true,
+        data: payment,
+      });
+    }
+
     const queryResponse = await mpesa.queryTransaction(checkoutRequestId);
+
+    // Handle rate limiting
+    if (queryResponse.ResultCode === "RATE_LIMITED") {
+      return res.json({
+        success: true,
+        data: {
+          ...payment,
+          rateLimited: true,
+        },
+        message: "Rate limited. Status will be updated via callback.",
+      });
+    }
 
     if (queryResponse.ResultCode !== undefined) {
       // parse resultCode from string to number
