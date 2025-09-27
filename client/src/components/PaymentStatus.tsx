@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { CheckCircle, XCircle, Clock, Loader2, RefreshCw } from "lucide-react";
+import { CircleCheck as CheckCircle, Circle as XCircle, Clock, Loader as Loader2, RefreshCw } from "lucide-react";
 
 interface Payment {
   id: string;
@@ -61,7 +61,7 @@ const PaymentStatus: React.FC<PaymentStatusProps> = ({
 
     try {
       const response = await fetch(
-        `http://localhost:3001/api/payments/status/${checkoutRequestId}`
+        `https://pv6zd9-3000.csb.app/api/payments/status/${checkoutRequestId}`
       );
       const data = await response.json();
 
@@ -239,17 +239,9 @@ const PaymentStatus: React.FC<PaymentStatusProps> = ({
 
       {payment?.status === "PENDING" && (
         <div className="mt-4 text-center">
-          {rateLimited ? (
-            <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-3 mb-4">
-              <p className="text-sm text-yellow-700">
-                ⚠️ API rate limit reached. Status will update automatically via callback or check manually.
-              </p>
-            </div>
-          ) : (
-            <p className="text-sm text-gray-500">
-              Status updates automatically every {refreshInterval / 1000} seconds
-            </p>
-          )}
+          <p className="text-sm text-gray-500">
+            Status updates automatically every 5 seconds
+          </p>
         </div>
       )}
     </div>

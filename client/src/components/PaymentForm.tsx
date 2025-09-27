@@ -1,11 +1,5 @@
 import React, { useState } from "react";
-import {
-  CreditCard,
-  Smartphone,
-  AlertCircle,
-  CheckCircle,
-  Loader2,
-} from "lucide-react";
+import { CreditCard, Smartphone, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Loader as Loader2 } from "lucide-react";
 
 interface PaymentFormProps {
   onPaymentInitiated: (checkoutRequestId: string) => void;

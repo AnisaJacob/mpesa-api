@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from "react";
-import { CheckCircle, XCircle, Clock, RefreshCw, History } from "lucide-react";
+import { CircleCheck as CheckCircle, Circle as XCircle, Clock, RefreshCw, History } from "lucide-react";
 
 interface Payment {
   id: string;
