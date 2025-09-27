@@ -11,9 +11,20 @@ class MpesaAPI {
     this.environment = process.env.MPESA_ENVIRONMENT || "sandbox";
     this.businessShortCode = process.env.MPESA_BUSINESS_SHORT_CODE;
     this.passkey = process.env.MPESA_PASSKEY;
-    this.callbackUrl = process.env.MPESA_CALLBACK_URL;
-    this.resultUrl = process.env.MPESA_RESULT_URL;
-    this.timeoutUrl = process.env.MPESA_TIMEOUT_URL;
+
+    this.callbackUrl = `${process.env.BACKEND_URL.replace(
+      /\/$/,
+      ""
+    )}/${process.env.MPESA_CALLBACK_URL.replace(/^\//, "")}`;
+    this.resultUrl = `${process.env.BACKEND_URL.replace(
+      /\/$/,
+      ""
+    )}/${process.env.MPESA_RESULT_URL.replace(/^\//, "")}`;
+    this.timeoutUrl = `${process.env.BACKEND_URL.replace(
+      /\/$/,
+      ""
+    )}/${process.env.MPESA_TIMEOUT_URL.replace(/^\//, "")}`;
+
     this.initiatorName = process.env.MPESA_INITIATOR_NAME;
     this.securityCredential = process.env.MPESA_SECURITY_CREDENTIAL;
 
@@ -161,42 +172,50 @@ class MpesaAPI {
         // Map response codes to meaningful status
         const data = response.data;
         const resultCode = data.ResultCode;
-        
+
         // Enhanced status mapping based on M-Pesa response codes
-        let status = 'PENDING';
-        if (resultCode === '0') {
-          status = 'SUCCESS';
-        } else if (resultCode === '1032') {
-          status = 'CANCELLED'; // Request cancelled by user
-        } else if (resultCode === '1037') {
-          status = 'TIMEOUT'; // DS timeout user cannot be reached
-        } else if (resultCode === '1025') {
-          status = 'INVALID_PHONE'; // Unable to lock subscriber, invalid phone number
-        } else if (resultCode === '1001') {
-          status = 'INSUFFICIENT_FUNDS'; // Insufficient funds on MPESA account
-        } else if (resultCode === '1019') {
-          status = 'TRANSACTION_FAILED'; // Transaction failed
-        } else if (resultCode && resultCode !== '1037') {
-          status = 'FAILED';
+        let status = "PENDING";
+        if (resultCode === "0") {
+          status = "SUCCESS";
+        } else if (resultCode === "1032") {
+          status = "CANCELLED"; // Request cancelled by user
+        } else if (resultCode === "1037") {
+          status = "TIMEOUT"; // DS timeout user cannot be reached
+        } else if (resultCode === "1025") {
+          status = "INVALID_PHONE"; // Unable to lock subscriber, invalid phone number
+        } else if (resultCode === "1001") {
+          status = "INSUFFICIENT_FUNDS"; // Insufficient funds on MPESA account
+        } else if (resultCode === "1019") {
+          status = "TRANSACTION_FAILED"; // Transaction failed
+        } else if (resultCode && resultCode !== "1037") {
+          status = "FAILED";
         }
-        
+
         return {
           ...data,
-          MappedStatus: status
+          MappedStatus: status,
         };
       });
     } catch (error) {
-      console.error("Transaction query error:", error.response?.data || error.message);
-      
+      console.error(
+        "Transaction query error:",
+        error.response?.data || error.message
+      );
+
       // If it's a rate limit error, return a specific response
-      if (error.response?.data?.fault?.detail?.errorcode === 'policies.ratelimit.SpikeArrestViolation') {
+      if (
+        error.response?.data?.fault?.detail?.errorcode ===
+        "policies.ratelimit.SpikeArrestViolation"
+      ) {
         return {
           ResultCode: "RATE_LIMITED",
           ResultDesc: "Rate limit exceeded. Please try again later.",
         };
       }
-      
-      throw new Error(error.response?.data?.errorMessage || "Transaction query failed");
+
+      throw new Error(
+        error.response?.data?.errorMessage || "Transaction query failed"
+      );
     }
   }
 
@@ -406,7 +425,13 @@ class MpesaAPI {
     }
   }
 
-  async reverseTransaction(transactionId, amount, receiverParty, remarks, occasion = "") {
+  async reverseTransaction(
+    transactionId,
+    amount,
+    receiverParty,
+    remarks,
+    occasion = ""
+  ) {
     try {
       const accessToken = await this.getAccessToken();
 

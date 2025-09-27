@@ -1,5 +1,11 @@
 import React, { useState } from "react";
-import { CreditCard, Smartphone, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Loader as Loader2 } from "lucide-react";
+import {
+  CreditCard,
+  Smartphone,
+  AlertCircle,
+  CheckCircle,
+  Loader2,
+} from "lucide-react";
 
 interface PaymentFormProps {
   onPaymentInitiated: (checkoutRequestId: string) => void;
@@ -17,10 +23,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ onPaymentInitiated }) => {
   const [success, setSuccess] = useState("");
 
   const formatPhoneNumber = (value: string) => {
-    // Remove all non-digits
     const numbers = value.replace(/\D/g, "");
-
-    // Handle different formats
     if (numbers.startsWith("254")) {
       return numbers;
     } else if (numbers.startsWith("0")) {
@@ -28,7 +31,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ onPaymentInitiated }) => {
     } else if (numbers.length <= 9) {
       return "254" + numbers;
     }
-
     return numbers;
   };
 
@@ -75,7 +77,7 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ onPaymentInitiated }) => {
       const formattedPhone = formatPhoneNumber(formData.phoneNumber);
 
       const response = await fetch(
-        "http://localhost:3001/api/payments/initiate",
+        "https://7qvlz9-3000.csb.app/api/payments/initiate",
         {
           method: "POST",
           headers: {
@@ -96,7 +98,6 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ onPaymentInitiated }) => {
         setSuccess("Payment initiated! Check your phone for M-Pesa prompt.");
         onPaymentInitiated(data.data.checkoutRequestId);
 
-        // Reset form
         setFormData({
           phoneNumber: "",
           amount: "",
@@ -106,8 +107,8 @@ const PaymentForm: React.FC<PaymentFormProps> = ({ onPaymentInitiated }) => {
       } else {
         setError(data.message || "Payment initiation failed");
       }
-    } catch (error) {
-      console.error("Payment error:", error);
+    } catch (err) {
+      console.error("Payment error:", err);
       setError("Network error. Please check your connection and try again.");
     } finally {
       setLoading(false);

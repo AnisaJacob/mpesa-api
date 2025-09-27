@@ -1,99 +1,104 @@
-import React, { useState } from 'react';
-import { Send, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
+import React, { useState } from "react";
+import { Send, AlertCircle, CheckCircle, Loader2 } from "lucide-react";
 
 interface B2CPaymentFormProps {
   onPaymentInitiated: (conversationId: string) => void;
 }
 
-const B2CPaymentForm: React.FC<B2CPaymentFormProps> = ({ onPaymentInitiated }) => {
+const B2CPaymentForm: React.FC<B2CPaymentFormProps> = ({
+  onPaymentInitiated,
+}) => {
   const [formData, setFormData] = useState({
-    phoneNumber: '',
-    amount: '',
-    commandId: 'BusinessPayment',
-    remarks: '',
-    occasion: '',
+    phoneNumber: "",
+    amount: "",
+    commandId: "BusinessPayment",
+    remarks: "",
+    occasion: "",
   });
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-  const [success, setSuccess] = useState('');
+  const [error, setError] = useState("");
+  const [success, setSuccess] = useState("");
 
   const commandOptions = [
-    { value: 'SalaryPayment', label: 'Salary Payment' },
-    { value: 'BusinessPayment', label: 'Business Payment' },
-    { value: 'PromotionPayment', label: 'Promotion Payment' },
+    { value: "SalaryPayment", label: "Salary Payment" },
+    { value: "BusinessPayment", label: "Business Payment" },
+    { value: "PromotionPayment", label: "Promotion Payment" },
   ];
 
   const formatPhoneNumber = (value: string) => {
-    const numbers = value.replace(/\D/g, '');
-    
-    if (numbers.startsWith('254')) {
+    const numbers = value.replace(/\D/g, "");
+
+    if (numbers.startsWith("254")) {
       return numbers;
-    } else if (numbers.startsWith('0')) {
-      return '254' + numbers.substring(1);
+    } else if (numbers.startsWith("0")) {
+      return "254" + numbers.substring(1);
     } else if (numbers.length <= 9) {
-      return '254' + numbers;
+      return "254" + numbers;
     }
-    
+
     return numbers;
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setError('');
-    setSuccess('');
+    setError("");
+    setSuccess("");
 
     if (!formData.phoneNumber || !formData.amount || !formData.remarks) {
-      setError('Please fill in all required fields');
+      setError("Please fill in all required fields");
       return;
     }
 
     const formattedPhone = formatPhoneNumber(formData.phoneNumber);
     if (formattedPhone.length !== 12) {
-      setError('Please enter a valid Kenyan phone number');
+      setError("Please enter a valid Kenyan phone number");
       return;
     }
 
     if (parseFloat(formData.amount) < 1) {
-      setError('Amount must be at least 1 KSH');
+      setError("Amount must be at least 1 KSH");
       return;
     }
 
     setLoading(true);
 
     try {
-      const response = await fetch('http://localhost:3001/api/payments/b2c', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          phoneNumber: formattedPhone,
-          amount: parseFloat(formData.amount),
-          commandId: formData.commandId,
-          remarks: formData.remarks,
-          occasion: formData.occasion,
-        }),
-      });
+      const response = await fetch(
+        "https://7qvlz9-3000.csb.app/api/payments/b2c",
+        {
+          method: "POST",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify({
+            phoneNumber: formattedPhone,
+            amount: parseFloat(formData.amount),
+            commandId: formData.commandId,
+            remarks: formData.remarks,
+            occasion: formData.occasion,
+          }),
+        }
+      );
 
       const data = await response.json();
 
       if (data.success) {
-        setSuccess('B2C payment initiated successfully!');
+        setSuccess("B2C payment initiated successfully!");
         onPaymentInitiated(data.data.conversationId);
-        
+
         setFormData({
-          phoneNumber: '',
-          amount: '',
-          commandId: 'BusinessPayment',
-          remarks: '',
-          occasion: '',
+          phoneNumber: "",
+          amount: "",
+          commandId: "BusinessPayment",
+          remarks: "",
+          occasion: "",
         });
       } else {
-        setError(data.message || 'B2C payment initiation failed');
+        setError(data.message || "B2C payment initiation failed");
       }
     } catch (error) {
-      console.error('B2C payment error:', error);
-      setError('Network error. Please check your connection and try again.');
+      console.error("B2C payment error:", error);
+      setError("Network error. Please check your connection and try again.");
     } finally {
       setLoading(false);
     }
@@ -111,14 +116,19 @@ const B2CPaymentForm: React.FC<B2CPaymentFormProps> = ({ onPaymentInitiated }) =
 
       <form onSubmit={handleSubmit} className="space-y-6">
         <div>
-          <label htmlFor="phoneNumber" className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            htmlFor="phoneNumber"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
             Customer Phone Number *
           </label>
           <input
             type="tel"
             id="phoneNumber"
             value={formData.phoneNumber}
-            onChange={(e) => setFormData(prev => ({ ...prev, phoneNumber: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, phoneNumber: e.target.value }))
+            }
             placeholder="0712345678 or 254712345678"
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
             required
@@ -126,7 +136,10 @@ const B2CPaymentForm: React.FC<B2CPaymentFormProps> = ({ onPaymentInitiated }) =
         </div>
 
         <div>
-          <label htmlFor="amount" className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            htmlFor="amount"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
             Amount (KSH) *
           </label>
           <div className="relative">
@@ -136,7 +149,9 @@ const B2CPaymentForm: React.FC<B2CPaymentFormProps> = ({ onPaymentInitiated }) =
               min="1"
               step="0.01"
               value={formData.amount}
-              onChange={(e) => setFormData(prev => ({ ...prev, amount: e.target.value }))}
+              onChange={(e) =>
+                setFormData((prev) => ({ ...prev, amount: e.target.value }))
+              }
               placeholder="100"
               className="w-full px-4 py-3 pl-12 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
               required
@@ -148,17 +163,22 @@ const B2CPaymentForm: React.FC<B2CPaymentFormProps> = ({ onPaymentInitiated }) =
         </div>
 
         <div>
-          <label htmlFor="commandId" className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            htmlFor="commandId"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
             Payment Type *
           </label>
           <select
             id="commandId"
             value={formData.commandId}
-            onChange={(e) => setFormData(prev => ({ ...prev, commandId: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, commandId: e.target.value }))
+            }
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
             required
           >
-            {commandOptions.map(option => (
+            {commandOptions.map((option) => (
               <option key={option.value} value={option.value}>
                 {option.label}
               </option>
@@ -167,14 +187,19 @@ const B2CPaymentForm: React.FC<B2CPaymentFormProps> = ({ onPaymentInitiated }) =
         </div>
 
         <div>
-          <label htmlFor="remarks" className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            htmlFor="remarks"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
             Remarks *
           </label>
           <input
             type="text"
             id="remarks"
             value={formData.remarks}
-            onChange={(e) => setFormData(prev => ({ ...prev, remarks: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, remarks: e.target.value }))
+            }
             placeholder="Payment for services"
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
             required
@@ -182,14 +207,19 @@ const B2CPaymentForm: React.FC<B2CPaymentFormProps> = ({ onPaymentInitiated }) =
         </div>
 
         <div>
-          <label htmlFor="occasion" className="block text-sm font-medium text-gray-700 mb-2">
+          <label
+            htmlFor="occasion"
+            className="block text-sm font-medium text-gray-700 mb-2"
+          >
             Occasion (Optional)
           </label>
           <input
             type="text"
             id="occasion"
             value={formData.occasion}
-            onChange={(e) => setFormData(prev => ({ ...prev, occasion: e.target.value }))}
+            onChange={(e) =>
+              setFormData((prev) => ({ ...prev, occasion: e.target.value }))
+            }
             placeholder="Special occasion"
             className="w-full px-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-colors"
           />

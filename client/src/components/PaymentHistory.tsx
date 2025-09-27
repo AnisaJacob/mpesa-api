@@ -1,5 +1,25 @@
 import React, { useState, useEffect } from "react";
-import { CircleCheck as CheckCircle, Circle as XCircle, Clock, RefreshCw, History } from "lucide-react";
+import {
+  CircleCheck as CheckCircle,
+  CircleX,
+  Clock,
+  RefreshCw,
+  History,
+} from "lucide-react";
+
+interface Reversal {
+  id: string;
+  conversationId: string;
+  originatorConversationId: string;
+  transactionId: string;
+  amount: number;
+  receiverParty: string;
+  remarks: string;
+  occasion?: string;
+  status: string;
+  createdAt: string;
+  updatedAt: string;
+}
 
 interface Payment {
   id: string;
@@ -13,6 +33,7 @@ interface Payment {
   transactionDate?: string;
   resultDesc?: string;
   createdAt: string;
+  reversal?: Reversal | null;
 }
 
 const PaymentHistory: React.FC = () => {
@@ -26,17 +47,17 @@ const PaymentHistory: React.FC = () => {
 
     try {
       const response = await fetch(
-        "http://localhost:3001/api/payments/history"
+        "https://7qvlz9-3000.csb.app/api/payments/history"
       );
       const data = await response.json();
 
       if (data.success) {
-        setPayments(data.data || []);
+        setPayments(data.data ?? []);
       } else {
         setError(data.message || "Failed to fetch payment history");
       }
-    } catch (error) {
-      console.error("Fetch payments error:", error);
+    } catch (e) {
+      console.error("Fetch payments error:", e);
       setError("Network error. Please try again.");
     } finally {
       setLoading(false);
@@ -52,7 +73,7 @@ const PaymentHistory: React.FC = () => {
       case "SUCCESS":
         return <CheckCircle className="w-5 h-5 text-green-500" />;
       case "FAILED":
-        return <XCircle className="w-5 h-5 text-red-500" />;
+        return <CircleX className="w-5 h-5 text-red-500" />;
       case "PENDING":
         return <Clock className="w-5 h-5 text-yellow-500" />;
       default:
@@ -73,23 +94,21 @@ const PaymentHistory: React.FC = () => {
     }
   };
 
-  const formatAmount = (amount: number) => {
-    return new Intl.NumberFormat("en-KE", {
+  const formatAmount = (amount: number) =>
+    new Intl.NumberFormat("en-KE", {
       style: "currency",
       currency: "KES",
       minimumFractionDigits: 2,
     }).format(amount);
-  };
 
-  const formatDate = (dateString: string) => {
-    return new Date(dateString).toLocaleString("en-KE", {
+  const formatDate = (dateString: string) =>
+    new Date(dateString).toLocaleString("en-KE", {
       year: "numeric",
       month: "short",
       day: "numeric",
       hour: "2-digit",
       minute: "2-digit",
     });
-  };
 
   if (loading) {
     return (
@@ -106,7 +125,7 @@ const PaymentHistory: React.FC = () => {
     return (
       <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-8">
         <div className="text-center">
-          <XCircle className="w-12 h-12 text-red-500 mx-auto mb-4" />
+          <CircleX className="w-12 h-12 text-red-500 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-gray-900 mb-2">Error</h3>
           <p className="text-red-600 mb-4">{error}</p>
           <button
@@ -123,7 +142,7 @@ const PaymentHistory: React.FC = () => {
 
   return (
     <div className="max-w-4xl mx-auto bg-white rounded-2xl shadow-xl p-8">
-      <div className="flex items-center justify-between mb-6">
+      <header className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-3">
           <div className="p-2 bg-green-100 rounded-lg">
             <History className="w-6 h-6 text-green-600" />
@@ -137,7 +156,7 @@ const PaymentHistory: React.FC = () => {
           <RefreshCw className="w-4 h-4" />
           Refresh
         </button>
-      </div>
+      </header>
 
       {payments.length === 0 ? (
         <div className="text-center py-12">
@@ -148,9 +167,9 @@ const PaymentHistory: React.FC = () => {
           <p className="text-gray-600">Your payment history will appear here</p>
         </div>
       ) : (
-        <div className="space-y-4">
+        <section className="space-y-4">
           {payments.map((payment) => (
-            <div
+            <article
               key={payment.id}
               className="border border-gray-200 rounded-lg p-4 hover:border-gray-300 transition-colors"
             >
@@ -167,13 +186,13 @@ const PaymentHistory: React.FC = () => {
                   </div>
                 </div>
                 <div className="text-right">
-                  <div
+                  <span
                     className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${getStatusColor(
                       payment.status
                     )}`}
                   >
                     {payment.status}
-                  </div>
+                  </span>
                   <p className="text-xs text-gray-500 mt-1">
                     {formatDate(payment.createdAt)}
                   </p>
@@ -200,15 +219,35 @@ const PaymentHistory: React.FC = () => {
               </div>
 
               {payment.resultDesc && (
-                <div className="mt-3 pt-3 border-t border-gray-100">
-                  <p className="text-sm text-gray-600 italic">
-                    {payment.resultDesc}
-                  </p>
-                </div>
+                <p className="mt-3 pt-3 border-t border-gray-100 text-sm text-gray-600 italic">
+                  {payment.resultDesc}
+                </p>
               )}
-            </div>
+
+              {payment.reversal && (
+                <section className="mt-4 p-3 border border-yellow-300 rounded bg-yellow-50 text-yellow-800">
+                  <h5 className="font-semibold mb-1">Reversal Details</h5>
+                  <p>
+                    <strong>Amount:</strong>{" "}
+                    {formatAmount(payment.reversal.amount)}
+                  </p>
+                  <p>
+                    <strong>Receiver:</strong> {payment.reversal.receiverParty}
+                  </p>
+                  <p>
+                    <strong>Status:</strong> {payment.reversal.status}
+                  </p>
+                  <p>
+                    <strong>Remarks:</strong> {payment.reversal.remarks}
+                  </p>
+                  <p className="text-xs text-yellow-700 mt-1">
+                    Requested on {formatDate(payment.reversal.createdAt)}
+                  </p>
+                </section>
+              )}
+            </article>
           ))}
-        </div>
+        </section>
       )}
     </div>
   );

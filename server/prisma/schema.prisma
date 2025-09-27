@@ -123,3 +123,19 @@ model QRCode {
 
   @@map("qr_codes")
 }
+
+model TransactionReversal {
+  id                       String   @id @default(auto()) @map("_id") @db.ObjectId
+  conversationId           String
+  originatorConversationId String
+  transactionId            String
+  amount                   Float
+  receiverParty            String
+  remarks                  String
+  occasion                 String?
+  status                   String   @default("PENDING")
+  createdAt                DateTime @default(now())
+  updatedAt                DateTime @updatedAt
+
+  @@map("transaction_reversals")
+}

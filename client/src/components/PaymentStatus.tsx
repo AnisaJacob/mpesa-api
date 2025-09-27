@@ -1,5 +1,11 @@
 import React, { useState, useEffect } from "react";
-import { CircleCheck as CheckCircle, Circle as XCircle, Clock, Loader as Loader2, RefreshCw } from "lucide-react";
+import {
+  CircleCheck as CheckCircle,
+  Circle as XCircle,
+  Clock,
+  Loader as Loader2,
+  RefreshCw,
+} from "lucide-react";
 
 interface Payment {
   id: string;
@@ -61,14 +67,14 @@ const PaymentStatus: React.FC<PaymentStatusProps> = ({
 
     try {
       const response = await fetch(
-        `https://pv6zd9-3000.csb.app/api/payments/status/${checkoutRequestId}`
+        `https://7qvlz9-3000.csb.app/api/payments/status/${checkoutRequestId}`
       );
       const data = await response.json();
 
       if (data.success && data.data) {
         setPayment(data.data);
         setRateLimited(data.data.rateLimited || false);
-        
+
         // If rate limited, increase refresh interval to reduce API calls
         if (data.data.rateLimited) {
           setRefreshInterval(30000); // 30 seconds when rate limited
