@@ -82,7 +82,7 @@ export const checkPaymentStatus = async (req, res) => {
     }
 
     // If payment is already completed (SUCCESS or FAILED), return cached result
-    if (payment.status === "SUCCESS" || payment.status === "FAILED" || payment.status === "CANCELLED" || payment.status === "TIMEOUT") {
+    if (payment.status === "SUCCESS" || payment.status === "FAILED") {
       return res.json({
         success: true,
         data: payment,
@@ -104,25 +104,23 @@ export const checkPaymentStatus = async (req, res) => {
     }
 
     if (queryResponse.ResultCode !== undefined) {
-      const resultCode = queryResponse.ResultCode;
-      const mappedStatus = queryResponse.MappedStatus || 'PENDING';
-      
-      // Only update if status has changed
-      if (mappedStatus !== payment.status) {
-        const updatedPayment = await prisma.payment.update({
-          where: { checkoutRequestId },
-          data: {
-            status: mappedStatus,
-            resultCode: resultCode,
-            resultDesc: queryResponse.ResultDesc,
-          },
-        });
+      // parse resultCode from string to number
+      const rc = parseInt(queryResponse.ResultCode, 10);
+      const resultCodeValue = isNaN(rc) ? null : rc;
 
-        return res.json({
-          success: true,
-          data: updatedPayment,
-        });
-      }
+      const updatedPayment = await prisma.payment.update({
+        where: { checkoutRequestId },
+        data: {
+          status: queryResponse.ResultCode === "0" ? "SUCCESS" : "FAILED",
+          resultCode: resultCodeValue,
+          resultDesc: queryResponse.ResultDesc,
+        },
+      });
+
+      return res.json({
+        success: true,
+        data: updatedPayment,
+      });
     }
 
     res.json({
@@ -811,6 +809,59 @@ export const getQRCodes = async (req, res) => {
     res.status(500).json({
       success: false,
       message: "Failed to fetch QR codes",
+    });
+  }
+};
+
+export const reverseTransaction = async (req, res) => {
+  try {
+    const { transactionId, amount, receiverParty, remarks, occasion } = req.body;
+
+    if (!transactionId || !amount || !receiverParty || !remarks) {
+      return res.status(400).json({
+        success: false,
+        message: "Transaction ID, amount, receiver party, and remarks are required",
+      });
+    }
+
+    const reverseResponse = await mpesa.reverseTransaction(
+      transactionId,
+      amount,
+      receiverParty,
+      remarks,
+      occasion
+    );
+
+    if (reverseResponse.ResponseCode !== "0") {
+      return res.status(400).json({
+        success: false,
+        message: reverseResponse.ResponseDescription || "Transaction reversal failed",
+      });
+    }
+
+    const reversal = await prisma.transactionReversal.create({
+      data: {
+        conversationId: reverseResponse.ConversationID,
+        originatorConversationId: reverseResponse.OriginatorConversationID,
+        transactionId,
+        amount: parseFloat(amount),
+        receiverParty,
+        remarks,
+        occasion: occasion || "",
+        status: "PENDING",
+      },
+    });
+
+    res.json({
+      success: true,
+      message: reverseResponse.ResponseDescription,
+      data: reversal,
+    });
+  } catch (error) {
+    console.error("Transaction reversal error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
     });
   }
 };
