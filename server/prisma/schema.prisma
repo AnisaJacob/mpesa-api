@@ -126,14 +126,31 @@ model QRCode {
 
 model TransactionReversal {
   id                       String   @id @default(auto()) @map("_id") @db.ObjectId
-  conversationId           String
-  originatorConversationId String
+  conversationId           String?
+  originatorConversationId String?
   transactionId            String
   amount                   Float
   receiverParty            String
   remarks                  String
   occasion                 String?
   status                   String   @default("PENDING")
+  retryCount               Int      @default(0)
+  maxRetries               Int      @default(3)
+  resultCode               Int?
+  resultDesc               String?
+  failureReason            String?
+  reversalTransactionId    String?
+  mpesaResponseCode        String?
+  mpesaResponseDesc        String?
+  callbackData             String?
+  callbackReceivedAt       DateTime?
+  lastRetryAt              DateTime?
+  expiredAt                DateTime?
+  lastStatusCheck          DateTime?
+  statusCheckCount         Int      @default(0)
+  errorCount               Int      @default(0)
+  lastError                String?
+  lastErrorAt              DateTime?
   createdAt                DateTime @default(now())
   updatedAt                DateTime @updatedAt
 

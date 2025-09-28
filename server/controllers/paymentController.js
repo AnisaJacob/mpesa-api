@@ -543,6 +543,47 @@ export const mpesaResult = async (req, res) => {
     const rc = parseInt(ResultCode, 10);
     const resultCodeValue = isNaN(rc) ? null : rc;
 
+    // Handle Transaction Reversal Results
+    const transactionReversal = await prisma.transactionReversal.findFirst({
+      where: { conversationId: ConversationID },
+    });
+
+    if (transactionReversal) {
+      let updateData = {
+        status: resultCodeValue === 0 ? "SUCCESS" : "FAILED",
+        resultCode: resultCodeValue,
+        resultDesc: ResultDesc,
+        callbackReceivedAt: new Date(),
+      };
+
+      if (resultCodeValue === 0 && ResultParameters && ResultParameters.ResultParameter) {
+        const transactionIdParam = ResultParameters.ResultParameter.find(
+          (param) => param.Key === "TransactionID"
+        );
+        const reversalTransactionIdParam = ResultParameters.ResultParameter.find(
+          (param) => param.Key === "ReversalTransactionID"
+        );
+        
+        if (transactionIdParam) {
+          updateData.reversalTransactionId = transactionIdParam.Value;
+        }
+        if (reversalTransactionIdParam) {
+          updateData.reversalTransactionId = reversalTransactionIdParam.Value;
+        }
+        
+        updateData.callbackData = JSON.stringify(ResultParameters.ResultParameter);
+      } else if (resultCodeValue !== 0) {
+        updateData.failureReason = ResultDesc;
+      }
+
+      await prisma.transactionReversal.update({
+        where: { id: transactionReversal.id },
+        data: updateData,
+      });
+
+      console.log(`Reversal ${ConversationID} updated: ${ResultDesc}`);
+    }
+
     const b2cTransaction = await prisma.b2CTransaction.findFirst({
       where: { conversationId: ConversationID },
     });
@@ -684,6 +725,16 @@ export const mpesaTimeout = async (req, res) => {
     const resultCodeValue = isNaN(rc) ? null : rc;
 
     await Promise.all([
+      prisma.transactionReversal.updateMany({
+        where: { conversationId: ConversationID },
+        data: {
+          status: "TIMEOUT",
+          resultCode: resultCodeValue,
+          resultDesc: ResultDesc,
+          callbackReceivedAt: new Date(),
+          failureReason: "Request timeout",
+        },
+      }),
       prisma.b2CTransaction.updateMany({
         where: { conversationId: ConversationID },
         data: {
@@ -723,6 +774,157 @@ export const mpesaTimeout = async (req, res) => {
   } catch (error) {
     console.error("M-Pesa timeout error:", error);
     res.status(500).json({ message: "Timeout processing failed" });
+  }
+};
+
+export const getReversalHistory = async (req, res) => {
+  try {
+    const reversals = await prisma.transactionReversal.findMany({
+      orderBy: { createdAt: "desc" },
+      take: 50,
+    });
+
+    res.json({
+      success: true,
+      data: reversals,
+    });
+  } catch (error) {
+    console.error("Get reversal history error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to fetch reversal history",
+    });
+  }
+};
+
+export const retryFailedReversal = async (req, res) => {
+  try {
+    const { reversalId } = req.params;
+
+    const reversal = await prisma.transactionReversal.findUnique({
+      where: { id: reversalId },
+    });
+
+    if (!reversal) {
+      return res.status(404).json({
+        success: false,
+        message: "Reversal not found",
+      });
+    }
+
+    if (reversal.status !== "FAILED" && reversal.status !== "EXPIRED") {
+      return res.status(400).json({
+        success: false,
+        message: "Only failed or expired reversals can be retried",
+      });
+    }
+
+    if (reversal.retryCount >= reversal.maxRetries) {
+      return res.status(400).json({
+        success: false,
+        message: "Maximum retry attempts exceeded",
+      });
+    }
+
+    // Update status to processing and increment retry count
+    await prisma.transactionReversal.update({
+      where: { id: reversalId },
+      data: {
+        status: "PROCESSING",
+        retryCount: reversal.retryCount + 1,
+        lastRetryAt: new Date(),
+      },
+    });
+
+    try {
+      // Retry the reversal
+      const reverseResponse = await mpesa.reverseTransaction(
+        reversal.transactionId,
+        reversal.amount,
+        reversal.receiverParty,
+        reversal.remarks,
+        reversal.occasion
+      );
+
+      if (reverseResponse.ResponseCode !== "0") {
+        await prisma.transactionReversal.update({
+          where: { id: reversalId },
+          data: {
+            status: "FAILED",
+            resultCode: parseInt(reverseResponse.ResponseCode) || null,
+            resultDesc: reverseResponse.ResponseDescription,
+            failureReason: reverseResponse.ResponseDescription,
+          },
+        });
+
+        return res.status(400).json({
+          success: false,
+          message: reverseResponse.ResponseDescription || "Retry failed",
+        });
+      }
+
+      // Update with new conversation IDs and set to pending
+      const updatedReversal = await prisma.transactionReversal.update({
+        where: { id: reversalId },
+        data: {
+          conversationId: reverseResponse.ConversationID,
+          originatorConversationId: reverseResponse.OriginatorConversationID,
+          status: "PENDING",
+          mpesaResponseCode: reverseResponse.ResponseCode,
+          mpesaResponseDesc: reverseResponse.ResponseDescription,
+        },
+      });
+
+      res.json({
+        success: true,
+        message: "Reversal retry initiated successfully",
+        data: updatedReversal,
+      });
+    } catch (mpesaError) {
+      await prisma.transactionReversal.update({
+        where: { id: reversalId },
+        data: {
+          status: "FAILED",
+          failureReason: mpesaError.message,
+        },
+      });
+
+      throw mpesaError;
+    }
+  } catch (error) {
+    console.error("Retry reversal error:", error);
+    res.status(500).json({
+      success: false,
+      message: error.message || "Internal server error",
+    });
+  }
+};
+
+export const checkReversalStatus = async (req, res) => {
+  try {
+    const { reversalId } = req.params;
+
+    const reversal = await prisma.transactionReversal.findUnique({
+      where: { id: reversalId },
+    });
+
+    if (!reversal) {
+      return res.status(404).json({
+        success: false,
+        message: "Reversal not found",
+      });
+    }
+
+    res.json({
+      success: true,
+      data: reversal,
+    });
+  } catch (error) {
+    console.error("Check reversal status error:", error);
+    res.status(500).json({
+      success: false,
+      message: "Failed to check reversal status",
+    });
   }
 };
 
@@ -799,40 +1001,94 @@ export const reverseTransaction = async (req, res) => {
       });
     }
 
-    const reverseResponse = await mpesa.reverseTransaction(
-      transactionId,
-      amount,
-      receiverParty,
-      remarks,
-      occasion
-    );
+    // Check if there's already a pending reversal for this transaction
+    const existingReversal = await prisma.transactionReversal.findFirst({
+      where: {
+        transactionId,
+        status: { in: ["PENDING", "PROCESSING"] },
+      },
+    });
 
-    if (reverseResponse.ResponseCode !== "0") {
+    if (existingReversal) {
       return res.status(400).json({
         success: false,
-        message:
-          reverseResponse.ResponseDescription || "Transaction reversal failed",
+        message: "A reversal request for this transaction is already in progress",
+        data: existingReversal,
       });
     }
 
+    // Create reversal record first with PROCESSING status
     const reversal = await prisma.transactionReversal.create({
       data: {
-        conversationId: reverseResponse.ConversationID,
-        originatorConversationId: reverseResponse.OriginatorConversationID,
         transactionId,
         amount: parseFloat(amount),
         receiverParty,
         remarks,
         occasion: occasion || "",
-        status: "PENDING",
+        status: "PROCESSING",
+        retryCount: 0,
+        maxRetries: 3,
       },
     });
 
-    res.json({
-      success: true,
-      message: reverseResponse.ResponseDescription,
-      data: reversal,
-    });
+    try {
+      // Attempt to initiate reversal with M-Pesa
+      const reverseResponse = await mpesa.reverseTransaction(
+        transactionId,
+        amount,
+        receiverParty,
+        remarks,
+        occasion
+      );
+
+      if (reverseResponse.ResponseCode !== "0") {
+        // Update reversal status to failed
+        await prisma.transactionReversal.update({
+          where: { id: reversal.id },
+          data: {
+            status: "FAILED",
+            resultCode: parseInt(reverseResponse.ResponseCode) || null,
+            resultDesc: reverseResponse.ResponseDescription,
+            failureReason: reverseResponse.ResponseDescription,
+          },
+        });
+
+        return res.status(400).json({
+          success: false,
+          message: reverseResponse.ResponseDescription || "Transaction reversal failed",
+        });
+      }
+
+      // Update reversal with M-Pesa response data and set to PENDING
+      const updatedReversal = await prisma.transactionReversal.update({
+        where: { id: reversal.id },
+        data: {
+          conversationId: reverseResponse.ConversationID,
+          originatorConversationId: reverseResponse.OriginatorConversationID,
+          status: "PENDING",
+          mpesaResponseCode: reverseResponse.ResponseCode,
+          mpesaResponseDesc: reverseResponse.ResponseDescription,
+        },
+      });
+
+      res.json({
+        success: true,
+        message: reverseResponse.ResponseDescription,
+        data: updatedReversal,
+      });
+    } catch (mpesaError) {
+      // Update reversal status to failed due to API error
+      await prisma.transactionReversal.update({
+        where: { id: reversal.id },
+        data: {
+          status: "FAILED",
+          failureReason: mpesaError.message,
+          retryCount: reversal.retryCount + 1,
+        },
+      });
+
+      throw mpesaError;
+    }
   } catch (error) {
     console.error("Transaction reversal error:", error);
     res.status(500).json({

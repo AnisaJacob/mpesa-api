@@ -3,11 +3,15 @@ import cors from "cors";
 import dotenv from "dotenv";
 import bodyParser from "body-parser";
 import paymentRoutes from "./routes/payments.js";
+import ReversalChecker from "./services/reversalChecker.js";
 
 dotenv.config();
 
 const app = express();
 const PORT = process.env.PORT || 3001;
+
+// Initialize reversal checker
+const reversalChecker = new ReversalChecker();
 
 // Middleware
 app.use(
@@ -35,6 +39,22 @@ app.get("/", (req, res) => {
   });
 });
 
+// Reversal stats endpoint
+app.get("/api/reversal-stats", async (req, res) => {
+  try {
+    const stats = await reversalChecker.getReversalStats();
+    res.json({
+      success: true,
+      data: stats,
+    });
+  } catch (error) {
+    res.status(500).json({
+      success: false,
+      message: "Failed to get reversal stats",
+    });
+  }
+});
+
 // Error handling middleware
 app.use((error, req, res, next) => {
   console.error("Server error:", error);
@@ -50,4 +70,20 @@ app.listen(PORT, () => {
   console.log(
     `🌐 CORS enabled for: ${process.env.FRONTEND_URL || "localhost"}`
   );
+  
+  // Start reversal checker
+  reversalChecker.start();
+});
+
+// Graceful shutdown
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully');
+  reversalChecker.stop();
+  process.exit(0);
+});
+
+process.on('SIGINT', () => {
+  console.log('SIGINT received, shutting down gracefully');
+  reversalChecker.stop();
+  process.exit(0);
 });

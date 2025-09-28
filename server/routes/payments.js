@@ -15,6 +15,9 @@ import {
   getB2BTransactions,
   getQRCodes,
   reverseTransaction,
+  getReversalHistory,
+  retryFailedReversal,
+  checkReversalStatus,
 } from "../controllers/paymentController.js";
 
 const router = express.Router();
@@ -38,6 +41,9 @@ router.post("/balance", checkAccountBalance);
 // Transaction Status
 router.post("/transaction-status", checkTransactionStatus);
 router.post("/transaction-reversal", reverseTransaction);
+router.get("/reversals", getReversalHistory);
+router.post("/reversals/:reversalId/retry", retryFailedReversal);
+router.get("/reversals/:reversalId/status", checkReversalStatus);
 
 // QR Code
 router.post("/qr-code", generateQRCode);
