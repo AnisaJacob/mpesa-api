@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { RefreshCw, AlertCircle, CheckCircle, Clock, XCircle } from "lucide-react";
+import { RefreshCw, CircleAlert as AlertCircle, CircleCheck as CheckCircle, Clock, Circle as XCircle } from "lucide-react";
 
 interface TransactionReversalProps {
   onSuccess?: () => void;
